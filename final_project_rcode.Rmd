@@ -1,0 +1,904 @@
+---
+title: "Dream Home/Investment"
+author: "Jisha"
+date: "February 27, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Introduction
+  
+  #American Dream Home
+ 
+  For many Americans homeownership is part of achieving their personal 'American Dream'. Most Millennial renters aged 18-34 (89%) plan to buy a home one day - more than any other generation. But what does this dream home look like? And where is located? What amenities do people dream of most?
+For most people, a house is the biggest purchase they will make in their lives, one they will pay off for years, even decades, to come. Based on the type of homes people prefer and their priorities in amenities available in those homes answer the questions of new home buyers, sellers, remodelers and builders to make better decisions.
+
+#Data
+The data set is Kaggle's ,'Iowa House Prices: Regression Techniques'.Dataset contains 81 variables and 1461 observations.Of the 81 variables, 23 are nominal, 23 are ordinal, 14 are discrete, and 21 are continuous. The variables included are basic characteristics that anyone wanting to buy a house would be interested in.
+
+```{r}
+#install.packages("plyr")
+#install.packages("dplyr")
+#install.packages("tidyr")
+#install.packages("ggplot2")
+#install.packages("scales")
+#install.packages("graphics")
+#install.packages("caret")
+
+library(plyr)
+
+library(dplyr)
+library(magrittr)
+library(stringr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(graphics)
+library(caret)
+
+```
+#Convert to local dataframe
+```{r}
+homedf <- read.csv("C:/springboard_capstone_project/final_project/home_poject_data/train.csv", header = TRUE)
+homedf <- read.csv("C:/springboard_capstone_project/final_project/home_poject_data/train.csv",stringsAsFactors = FALSE)
+homedf <- as.data.frame(homedf)
+homedf <- tbl_df(homedf)
+glimpse(homedf)
+```
+ 
+# Data Cleaning
+ 
+ #Finding the missing values in data
+```{r}
+any(is.na(homedf))
+```
+#How many are  there
+```{r}
+sum(is.na(homedf))
+# Return index of columns that have missing values
+na.cols = which(colSums(is.na(homedf)) >0 )
+#Break down missing values by variable
+sort(colSums(sapply(homedf[na.cols], is.na)), decreasing = TRUE)
+
+```
+
+PoolQC and MiscFeature is missing most of values and comparing with the values of other variables like poolArea and MiscValue ,the home is missing pool and Miscellaneous features. These variables are not containing enough information for the analysis.
+# Dropping the PoolQC and MiscFeature
+```{r}
+#homedf %>%
+#dplyr:: select(everything(),- PoolQC)
+```
+
+Alley have NA encoded as a level to specify No Alley Access.It's not "missing" values.There are 1369 missing values in Alley.Coding the NAs to No Alley, fixes all these missing values. 
+```{r}
+# Changing NA to  "No Alley'
+
+homedf$Alley[is.na(homedf$Alley)]<- "No Alley"
+
+```
+
+```{r}
+table(homedf$Alley)
+```
+
+ 690 FireplaceQu is missing. Fireplace column shows the range of fire places from 0 to 3.Assuming 690 homes doesn't have a fireplace change the 'NA' to 'No fireplace'.
+```{r}
+
+table(homedf$Fireplaces)
+```
+
+```{r}
+
+homedf$FireplaceQu[is.na(homedf$FireplaceQu)]<- "No Fireplace"
+
+```
+
+```{r}
+
+table(homedf$FireplaceQu)
+```
+
+ 1179 missing values in Fence. Changing the NA's to "No Fence"
+ 
+```{r}
+homedf$Fence[is.na(homedf$Fence)]<- "No Fence"
+
+```
+
+```{r}
+table(homedf$Fence)
+```
+
+259 values are missing in LotFrontage.There is no single variable in the dataset that gives a reason why these values are missing. We make the assumption that the lot frontage for a given house is fairly similar to the other properties.
+
+```{r}
+# Populating the NA's with the mean of lot frontage
+lf.mean <- mean(homedf$LotFrontage, na.rm=TRUE)
+homedf$LotFrontage[is.na(homedf$LotFrontage)] = lf.mean
+lf.mean
+```
+5 Garage variables are missing 81 values.Checking the variables 'GarageCars' and 'GarageArea' gives the idea there is no garage built with the home .So the missing values are 'none'. 
+```{r}
+# Changing NA's in garage variable to none
+homedf$GarageType[is.na(homedf$GarageType)]<- "None"
+homedf$GarageFinish[is.na(homedf$GarageFinish)]<- "None"
+homedf$GarageQual[is.na(homedf$GarageQual)]<- "None"
+homedf$GarageCond[is.na(homedf$GarageCond)]<- "None"
+
+```
+
+```{r}
+# Fill in Garage year Built
+homedf$GarageYrBlt[is.na(homedf$GarageYrBlt)]<- "0"
+
+```
+Missing values in BsmtExposure,BsmtFinType1,BsmtFinType2,BsmtQual,BsmtCond is related with Basement sqrft 0.The missing values shows there is no basement.
+```{r}
+# Changing the Na's in Bsmt features with "No Basement"
+homedf$BsmtExposure[is.na(homedf$BsmtExposure)]<- "No Basement"
+homedf$BsmtFinType2[is.na(homedf$BsmtFinType2)]<- "No Basement"
+homedf$BsmtQual[is.na(homedf$BsmtQual)]<- "No Basement"
+homedf$BsmtCond[is.na(homedf$BsmtCond)]<- "No Basement"
+homedf$BsmtFinType1[is.na(homedf$BsmtFinType1)]<- "No Basement"
+```
+Changing the missing values in MasVnrType And MasVnrArea wih 'None' and '0'.
+```{r}
+homedf$MasVnrType[is.na(homedf$MasVnrType)]<- "None"
+homedf$MasVnrArea[is.na(homedf$MasVnrArea)]<- "0"
+any(is.na(homedf$MasVnrType))
+any(is.na(homedf$MasVnrArea))
+```
+Fill in the electrical value with 'None'
+```{r}
+homedf$Electrical[is.na(homedf$Electrical)]<- "None"
+
+```
+# New variables
+
+combine the basement and ground level area squarefeet "TotalLivingAreaSF"
+```{r}
+homedf %>% mutate( TotalLivingAreaSF = GrLivArea + BsmtFinSF1 + BsmtFinSF2)
+
+
+```
+
+```{r}
+ summary(homedf$TotalLivingAreaSF)
+```
+
+```{r}
+#Create new column total number of bathrooms in ground level & basement 
+homedf %>% mutate( TotNoBath = FullBath + HalfBath ,TotNoBsmtBath = BsmtFullBath +
+BsmtHalfBath )
+homedf
+
+```
+
+```{r}
+# New column Age of the House- "AgeOfHouse"
+homedf %>% mutate(AgeOfHouse = YrSold- YearBuilt)
+#summary( homedf$AgeOfHouse)
+
+```
+
+After filling the missing values appropriately and in some case droping some variables containing 90% values as NA's we begin the data analysis.
+
+
+# Preliminary exploration of data
+ 
+ SalePrice graph
+```{r}
+#levels(homedf$SalePrice) <- (34900 :755000)
+
+ggplot( homedf, aes(x = SalePrice)) +
+  geom_histogram(binwidth=10000, fill = "orange", color = "grey") +
+  scale_x_continuous(labels = dollar, breaks = seq(0, 755000, 34900)) + 
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(x = "Sale Price (in dollars)") +
+  ggtitle("Sales Prices of Homes in Ames, IA")
+
+```
+
+#How expensive are houses?
+
+```{r}
+min(homedf$SalePrice, na.rm = T)
+max(homedf$SalePrice, na.rm = T)
+summary(homedf$SalePrice)
+```
+
+The sale price graph is positively skewed to the right with a good number of outliers.
+The cheapest house sold for $34,900 and the most expensive for $755,000
+The average sales price is $180,921, while median is $163,000
+
+#When were the houses built?
+```{r}
+
+ggplot(homedf, aes(x = YearBuilt)) +
+  geom_histogram( binwidth = 15,fill = "orange",color = "grey" ) +
+  
+   theme(axis.text.x = element_text(angle = 90))+
+  labs(x = "Year Built") +
+   ggtitle("\n When were the houses built\n ")
+
+```
+
+```{r}
+summary(homedf$YearBuilt)
+```
+
+```{r}
+homedf %>% count(YrSold)
+```
+
+
+
+```{r}
+ggplot(homedf, aes(x=MoSold ))+
+  geom_histogram( fill ="orange" )+
+  scale_x_continuous()+
+  labs(x = "Month Sold")+
+  ggtitle(" Monthly Sale Chart")
+
+```
+#The chart shows the home sales peak at May,June and July.
+
+```{r}
+homedf %>% count(MoSold)
+
+
+```
+
+
+#Which neighborhood are houses in?
+```{r}
+ggplot(homedf, aes(Neighborhood))+
+  geom_histogram( stat= 'count',binwidth=14, fill = "orange", color = "grey") +
+   theme(axis.text.x = element_text(angle = 90, size = 8), legend.position = "none")+
+    ggtitle("Which neighborhood are houses in?")
+
+```
+```{r}
+homedf %>% count(homedf$Neighborhood)
+```
+Popular neigborhoods are North Ames,College Cir,Old Town and Edwards.
+
+#Exploratory Data Analysis
+
+#Boxplot of neighborhood and saleprice
+```{r}
+ggplot(homedf, aes(x = Neighborhood, y = SalePrice)) + 
+  geom_boxplot(fill = "orange") +
+  scale_y_continuous(labels = dollar)+
+  theme(axis.text.x = element_text(angle = 90, size = 8), legend.position = "none") + 
+  ggtitle("Neighborhood and Saleprice")
+```
+
+How big are houses 
+```{r}
+ggplot(homedf, aes(x = GrLivArea)) +
+  geom_histogram(binwidth = 100, fill = "orange",color = "grey" ) +
+  labs(x = "Ground Level  sqft") +
+  ggtitle(" House size ")
+
+```
+
+```{r}
+summary(homedf$GrLivArea)
+```
+The smallest house is 334 sqft and the biggest is 5642sqft
+
+#How big are lots?
+
+```{r}
+summary(homedf$LotArea)
+```
+
+```{r}
+ggplot(homedf, aes(x = LotArea , y = GrLivArea)) +
+  geom_line() +
+  labs(x = "Lot Area") +
+  ggtitle(" Lot Size & Sqft ")
+
+```
+
+```{r}
+ggplot(homedf, aes(LotArea, SalePrice)) + 
+  geom_line(color="blue", size=2) +
+  scale_y_continuous("Sale Price", labels = dollar) +
+  scale_x_continuous("Lot area") +
+  ggtitle(" Home Sale Price & Lot area") +
+  theme(plot.title = element_text(size = 16, face="bold"))
+```
+
+```{r}
+ggplot(homedf, aes(GrLivArea, SalePrice)) + 
+  geom_line(color="blue", size=2) +
+  scale_y_continuous(" Sale Price", labels = dollar) +
+  scale_x_continuous("Sqft") +
+  ggtitle(" Sale price and Sqft") +
+  theme(plot.title = element_text(size = 16, face="bold"))
+```
+
+```{r}
+summary(homedf$LotArea)
+summary(homedf$GrLivArea)
+summary(homedf$SalePrice)
+```
+Both lot area and sqre footage show significant corelation with saleprice
+
+#Dwelling Type
+The MsSubclass variable specifies the type of dwelling involved in the sale. The variable is coded as an integer and has a key that can be found in the documentation. Numbers in the 20 to 85 range represent different traditional style homes and others represent duplexes or other split homes.
+
+```{r}
+table(homedf$MSSubClass)
+```
+# Zoning Classifications
+
+```{r}
+table(homedf$MSZoning)
+```
+
+```{r}
+# shorten to C
+index <- which(homedf$MSZoning == "C (all)")
+homedf[index, 'MSZoning'] <- "C"
+table(homedf$MSZoning)
+```
+
+```{r}
+ggplot(homedf, aes(SalePrice, YrSold)) +
+  geom_point() +
+  scale_x_continuous(labels = dollar)+ 
+  theme(axis.text.x = element_text(angle = 90))+
+  facet_wrap(~MSZoning)
+
+```
+
+
+The plots shows most sales happened at the lower density residential areas.
+
+
+# Linear relation between Lot Frontage and Sale Price
+
+```{r}
+ggplot(homedf, aes(x = log(LotFrontage), y = SalePrice)) + 
+  geom_point() +
+   scale_y_continuous(labels = dollar)+ 
+  geom_smooth(method = "lm")
+```
+
+Lot Area
+```{r}
+# scatter plot vs sale price
+ggplot(homedf, aes(x = LotArea, y = SalePrice)) + 
+  geom_point(alpha = 0.2) + 
+  geom_smooth(method = "lm") + 
+  scale_y_continuous(labels = dollar)
+
+```
+```{r}
+summary(homedf$LotArea)
+```
+# In lot area
+```{r}
+ggplot(homedf, aes(x = log(LotArea), y = SalePrice)) + 
+  geom_point(alpha = 0.2) + 
+  geom_smooth(method = "lm") + 
+  scale_y_continuous(labels = dollar)
+```
+
+There seems to be some very high end outliers influencing the scatter plot of sale price and lot area-some lot areas are much larger than most. For this reason, we look at the natural log of lot area instead
+
+# Street
+
+```{r}
+homedf$Street <-as.factor(homedf$Street)
+summary(homedf$Street)
+
+```
+#LOt Shape
+
+```{r}
+table(homedf$LotShape)
+```
+
+Lot shape: 484 lots are Slightly irregular,41 areModerately Irregular,10 are Irregular and 925 are Regular	
+
+```{r}
+ggplot(homedf,aes(x = SalePrice))+
+  geom_histogram(biwidth = 0.7)+
+  scale_x_continuous(labels = dollar)+
+  facet_wrap(~ LotShape)
+
+```
+
+```{r}
+homedf %>% 
+  group_by(LotShape) %>% 
+  dplyr::summarise(n = n(), 
+            mean_SalePrice = mean(SalePrice))
+```
+Mean sale price is high on lot shape moderately irregular and irregular. 
+
+#Land Contour
+
+```{r}
+table(homedf$LandContour)
+
+```
+
+```{r}
+ ggplot(homedf, aes(SalePrice)) + 
+  geom_histogram()+ 
+   scale_x_continuous(labels = dollar)+
+  facet_wrap(~LandContour)
+ 
+
+```
+
+
+```{r}
+homedf %>% 
+  group_by(LandContour) %>% 
+  dplyr::summarise(n = n(), 
+            mean_SalePrice = mean(SalePrice))
+
+```
+
+
+It seems like properties on irregular,raised and hillside land sale pice mean value is more than the regular shaped lots.
+
+#Utilities
+
+```{r}
+homedf %>% 
+  group_by(Utilities) %>% 
+  dplyr::summarise(n = n(), 
+            mean_SalePrice = mean(SalePrice))
+
+```
+
+Except one utility variable got the same value.
+
+```{r}
+# Drop the Utility variable
+homedf %>% 
+  dplyr::select(everything(), -Utilities)
+```
+
+#Lot Configuration
+
+```{r}
+
+ggplot(homedf, aes(fill=LotConfig, y=SalePrice, x=LotConfig)) + 
+geom_bar(position = "dodge", stat="identity")+
+   scale_y_continuous(labels = dollar)
+
+```
+
+```{r}
+table(homedf$LotConfig)
+```
+
+```{r}
+homedf %>% 
+  group_by(LotConfig) %>% 
+  dplyr::summarise(n = n(), 
+            mean_SalePrice = mean(SalePrice))
+
+```
+
+#Land Slope
+
+```{r}
+homedf %>% 
+  group_by(LandSlope) %>% 
+  dplyr::summarise(n = n(), 
+            mean_SalePrice = mean(SalePrice))
+
+```
+Sale price changes with the land slope level
+
+#Quality ,Type and price
+
+```{r}
+homedf %>% 
+  group_by(BldgType) %>% 
+  dplyr::summarise(n = n(), 
+            mean_SalePrice = mean(SalePrice))
+```
+
+```{r}
+ggplot(homedf, aes(x = BldgType, y = SalePrice, color = OverallQual)) + geom_point()+
+   scale_y_continuous(labels = dollar)+
+   theme(axis.text.x = element_text(angle = 90))+
+facet_wrap(~HouseStyle)
+```
+
+```{r}
+ggplot(homedf, aes(x = BldgType, y = SalePrice, color = OverallCond)) + geom_point()+
+   scale_y_continuous(labels = dollar)+
+   theme(axis.text.x = element_text(angle = 90))+
+facet_wrap(~HouseStyle)
+
+```
+
+Overall Quality of the home matters most.
+
+```{r}
+ggplot(homedf, aes( x=SalePrice,y=BldgType,color=OverallQual)) + 
+    geom_point( stat="identity") +  
+   scale_x_continuous(labels = dollar)+ 
+  theme(axis.text.x = element_text(angle = 90))+
+    facet_wrap(~Neighborhood)
+```
+
+
+```{r}
+homedf %>% 
+  group_by(Neighborhood) %>% 
+  dplyr::summarise(n = n(), 
+            mean_SalePrice = mean(SalePrice))
+```
+
+ Our popular neigborhoods(North Ames,College Cir,Old Town and Edwards) shows variety, affordability and overall quality of availability in homes. 
+
+```{r}
+homedf %>% 
+  group_by(Condition1) %>% 
+  dplyr::summarise(n = n(), 
+            mean_SalePrice = mean(SalePrice))
+```
+
+```{r}
+homedf %>% 
+  group_by(Condition2) %>% 
+  dplyr::summarise(n = n(), 
+            mean_SalePrice = mean(SalePrice))
+```
+
+#Year Built and Remodel
+
+
+```{r}
+ ggplot(homedf, aes(x = YearBuilt, y = SalePrice, color = YearRemodAdd)) + geom_point()+
+   scale_y_continuous(labels = dollar)
+
+```
+
+Remodelling adds the value to the house
+
+#Exterior
+
+```{r}
+ggplot(homedf,aes(x = SalePrice,color=ExterQual))+
+  geom_histogram(biwidth = 1000)+
+  scale_x_continuous(labels = dollar)+
+  facet_wrap(~ExterQual)
+ 
+```
+
+```{r}
+ggplot(homedf,aes(x = SalePrice, color= ExterCond))+
+  geom_histogram(biwidth = 1000)+
+  scale_x_continuous(labels = dollar)+
+   theme(axis.text.x = element_text(angle = 90))+
+   facet_wrap(~ExterCond)
+```
+
+```{r}
+table(homedf$ExterQual)
+```
+
+```{r}
+ table(homedf$ExterCond)
+```
+
+
+#Basement
+
+```{r}
+homedf %>% count(homedf$BsmtQual,BsmtFullBath,BsmtHalfBath)
+
+```
+
+
+```{r}
+ ggplot(homedf, aes(x = log(BsmtFinSF1), y = SalePrice, color = BsmtQual)) + 
+  geom_point()+
+  stat_smooth(color='black')+
+  scale_y_continuous(labels = dollar)+
+  facet_wrap(~BsmtQual)
+
+```
+
+```{r}
+table(homedf$BsmtQual)
+```
+
+A bigger and good quality basement area with a  full or half bath improves the value of home.
+
+```{r}
+ ggplot(homedf, aes(x = BsmtQual, y = SalePrice, color=BsmtHalfBath)) + geom_point()+
+   scale_y_continuous(labels = dollar)+
+  facet_wrap(~BsmtFullBath)
+```
+
+```{r}
+homedf %>% count(homedf$BsmtFullBath)
+
+```
+
+```{r}
+homedf %>% count(homedf$BsmtHalfBath)
+```
+
+
+#Energy Feature
+
+```{r}
+homedf %>% count(homedf$CentralAir)
+
+
+```
+
+```{r}
+homedf %>% count(homedf$HeatingQC)
+```
+
+```{r}
+ ggplot(homedf, aes(x = CentralAir, y = SalePrice)) + geom_bar(stat = "identity")+
+   scale_y_continuous(labels = dollar)
+  #facet_wrap(~CentralAir)
+
+```
+
+```{r}
+ ggplot(homedf, aes(x = HeatingQC, y = SalePrice)) + geom_bar(stat = "identity")+
+   scale_y_continuous(labels = dollar)
+```
+#Ground level Sqft
+GrLivArea is the total of fist floor and second floor sqf. There is many Zeros in the X2ndFlrSF.
+
+```{r}
+homedf %>% count(homedf$HouseStyle)
+```
+
+```{r}
+homedf %>% count(homedf$X2ndFlrSF==0)
+```
+
+It looks like 829 homes doesn't have a second floor.
+
+```{r}
+summary(homedf$GrLivArea)
+```
+
+```{r}
+homedf %>% count(homedf$GrLivArea,BedroomAbvGr)
+```
+
+
+```{r}
+ ggplot(homedf, aes( BedroomAbvGr,GrLivArea,color = BedroomAbvGr)) + geom_line()
+
+
+```
+
+The smallest homes have small room count and the highest have high room count.
+
+```{r}
+ggplot(homedf, aes(GrLivArea, SalePrice))+
+  geom_point()+
+  stat_smooth()+
+  scale_y_continuous(labels = dollar)+
+  facet_wrap(~BedroomAbvGr)
+
+
+```
+The number of bedrooms above ground and ground level living area sqft shows strong corelation with sale price.
+
+#Number of bathrooms and price
+
+```{r}
+ #ggplot(homedf, aes(x = BedroomAbvGr , y = SalePrice)) + geom_bar(stat = "identity")+
+#   scale_y_continuous(labels = dollar)+
+ggplot(homedf, aes(x = BedroomAbvGr, y = SalePrice, fill = HalfBath)) +
+  geom_boxplot() +
+   scale_y_continuous(labels = dollar)+
+  facet_wrap(~FullBath)
+
+```
+
+```{r}
+homedf %>% count(homedf$BedroomAbvGr,FullBath,HalfBath,BsmtFullBath == 1)
+```
+
+
+```{r}
+ homedf%>%
+  select(SalePrice, FullBath )
+
+```
+Some homes shows 0 fullBath in the ground level .Comparing with the basement bathroom numbers shows they have a full bath in the basement level. The no.of bathrooms in the house effects the sale price.
+
+#Kitchen quality and number of kitchens
+
+```{r}
+ggplot(homedf, aes(x = SalePrice)) + 
+  geom_histogram()+
+    scale_x_continuous(labels = dollar)+
+ facet_wrap(~KitchenAbvGr)+
+  ggtitle(" No.of kitchen and Home Value")
+```
+
+
+```{r}
+ggplot(homedf, aes(x = SalePrice)) + 
+  geom_histogram()+
+    scale_x_continuous(labels = dollar)+
+ facet_wrap(~KitchenQual)+
+  
+ggtitle( " Quality of Kitchen and Home Value ")
+```
+
+The quality of kitchen increases the value of home. The number kitchen is not so much.
+
+# Home Functionality
+
+```{r}
+ggplot (homedf,aes(Functional,SalePrice,color= OverallQual))+
+  geom_point()+
+  scale_y_continuous(labels = dollar)+
+   geom_smooth()
+         
+```
+
+The Market value of a home with typical functionality is higher than the others. Functionality and over all quality of home is corelated.
+
+#Total rooms above ground
+
+```{r}
+homedf$TotRmsAbvGrd <-as.factor(homedf$TotRmsAbvGrd)
+
+```
+
+
+```{r}
+ggplot(homedf, aes(x = factor(TotRmsAbvGrd), y = SalePrice, fill = factor(TotRmsAbvGrd))) + 
+  geom_boxplot() +
+  scale_y_continuous(labels = dollar)+
+  theme(axis.text.x = element_text(angle = 0, size = 10), legend.position = "none")+
+  ggtitle( " Sale price and Total rooms")
+```
+The bigger the place the better the value
+
+# Fireplace
+
+```{r}
+table(homedf$Fireplaces)
+
+```
+```{r}
+table(homedf$FireplaceQu)
+```
+
+```{r}
+ggplot(homedf, aes(x = Fireplaces, y = SalePrice)) +
+  geom_bar(stat = "identity")+
+   scale_y_continuous(labels = dollar)+
+  facet_grid(~FireplaceQu)
+
+```
+
+# Garage 
+7 total variables related to the home's garage. GarageType, GarageYrBlt, GarageFinish,GarageQual,GarageCond contain 81 missing values.
+
+
+#Checking to see the homes built with no garage or it's missing the data.
+
+```{r}
+homedf %>% count(homedf$GarageArea == 0)
+```
+
+
+```{r}
+table(homedf$GarageCars)
+```
+81 records in GarageArea andGarageCars shows 0. We assume the homes built without a garage.
+
+```{r}
+ggplot(homedf, aes(fill=GarageType, y=SalePrice, x=GarageCars)) + 
+geom_bar(position = "dodge", stat="identity")+
+   scale_y_continuous(labels = dollar)+
+facet_grid(GarageCond ~GarageQual)
+
+```
+
+```{r}
+ggplot(homedf, aes( y=GarageArea, x= SalePrice,colour='red')) + 
+geom_bar(stat = "identity", position ="dodge")+
+   scale_x_continuous(labels = dollar)+
+   theme(axis.text.x = element_text(angle = 90, size = 8), legend.position = "none")+  
+facet_grid(~GarageFinish)
+```
+
+A spacious and finished garage adds value to home
+
+# porch and Deck
+
+```{r}
+ggplot(homedf,aes(SalePrice,WoodDeckSF,color=SalePrice))+
+  geom_line()+
+  scale_x_continuous(labels=dollar)
+```
+
+```{r}
+ggplot(homedf,aes(SalePrice,OpenPorchSF,color=SalePrice))+
+  geom_line()+
+  scale_x_continuous(labels=dollar)
+```
+
+# Sale type and condition
+
+```{r}
+  table(homedf$SaleCondition,homedf$SaleType)
+
+
+```
+
+```{r}
+ggplot(homedf, aes(SaleType,fill = SaleType))+
+  geom_histogram(stat = "count")
+```
+
+```{r}
+# boxplot of saletype and sale price
+ggplot(homedf, aes(x = SaleType, y = SalePrice)) + 
+  geom_boxplot(aes(fill = SaleType))+ 
+  theme(axis.text.x = element_text(angle = 0, size = 10), legend.position = "none") +  scale_y_continuous(labels = dollar)
+```
+
+
+
+```{r}
+# Boxplot of sale price Vs condition
+ggplot(homedf, aes(x = SaleCondition, y = SalePrice)) + 
+  geom_boxplot(aes(fill = SaleCondition)) + 
+  theme(axis.text.x = element_text(angle = 0, size = 10), legend.position = "none") + 
+  scale_y_continuous(labels = dollar)
+
+```
+#Sale price Histogram
+```{r}
+ggplot( homedf, aes(x = SalePrice)) +
+  geom_histogram(binwidth=10000, fill = "blue", color = "black") +
+  scale_x_continuous(labels = dollar, breaks = seq(0, 755000, 34900)) + 
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(x = "Sale Price (in dollars)") +
+  ggtitle("Sales Prices of Homes in Ames, IA")
+```
+
+
+
+#Dropping outliers of sale price below and above 1st and 99th percentile
+
+```{r}
+# remove outliers
+outlierMinMax <- quantile(homedf$saleprice, c(.01, .99))
+df <- homedf[ homedf$saleprice > outlierMinMax[1] & homedf$saleprice < outlierMinMax[2],  ]
+# end number of obs
+end <- dim(df)[1]
+```
+
+```{r}
+# obs and vars after cleaning
+endObs <- dim(df)[1]
+endVars <- dim(df)[2]
+```
+
+
